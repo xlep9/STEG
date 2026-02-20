@@ -11,16 +11,34 @@ DECIMAL                            HEXADECIMAL                        DESCRIPTIO
                                                                       file count: 2,
                                                                       total size:
                                                                       983655 bytes
---------------------------------------------------------------------------------------
+
 
 Offset 0: file bắt đầu bằng JPEG hợp lệ.
 Offset 3754399: ngay sau khi phần JPEG kết thúc, có một ZIP archive bắt đầu.
 Tức là file Marlboro.jpg thực chất là:
 [JPEG] + [ZIP] (ZIP bị nối thêm vào cuối ảnh) (ZIP chứa 2 file)
 
+------------------------------------------
 Cách 1: dùng binwalk -e
 Cách 2: cắt phần ZIP ra rồi giải nén (chắc ăn nhất)
 tail -c +3754400 Marlboro.jpg > payload.zip
 unzip payload.zip -d out
 +3754400 vì tail -c +N dùng vị trí bắt đầu tính từ 1.
+
+------------------------------------------
+- thu được 2 file dưới đây:
+encrypted.bin  smoke.png
+- tiếp theo dùng $ zsteg -a smoke.png thu được key mã hóa file bin là
+c7027f5fdeb20dc7308ad4a6999a8a3e069cb5c8111d56904641cd344593b657
+- viết code xor kí tự của key với kí tự trong file bin để tìm file text ban đầu thu được:
+
+binh@n07f0uNd:~/extractions/out$ cat decrypted.txt
+Content-Type: text/x-malbolge
+Interpreter: https://zb3.me/malbolge-tools/#interpreter
+Language: Malbolge
+
+D'`$##\!<5|jWVT/eRcONp_oJJHHF!3gfBc!?a_{)(xwYon4rqpi/mlkdibaf_%]ba`_XWVz=YRQPOsSRQ3ONGkKD,BAe(DCBA@?>7[5432V6v.3,P*).-&Jk)"!&}C#cy~wv<zyxZpotm3qSi/gOkd*KJ`ed]\"`Y^]\[TxRQVOTSLpPONMLEiIH*)?>bB$@987[Z:38765.Rsr*/.-&%$#G'~f$#z@~}|{t:[wvonm3kSonmlkdihg`&GFbaZ~^@VUTYRQPtNMLKPImGFKJCBf)E>bB;@?>7[5432Vw/43,POp.'&+*#G!~D1
+
+chạy mã Malbolge bằng tool online và thu được flag
+
 
