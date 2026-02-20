@@ -1,0 +1,317 @@
+Dưới đây là một **writeup hoàn chỉnh** cho bài `challenge_stego.tif`, viết theo kiểu dễ hiểu từ đầu đến cuối (người mới cũng theo được).
+
+---
+
+# Writeup `challenge_stego.tif` (Stego TIFF + decoy QR)
+
+## Kết quả cuối
+
+* **QR nhìn thấy được (mồi nhử):** `BITSCTF{blud_REALLY_ thought_lmao}` ❌
+* **Flag đúng:** `BITSCTF{qr_bu7_n07_7h47_qr}` ✅
+
+---
+
+## Ý tưởng chính của bài
+
+Bài này có **2 lớp**:
+
+1. **Lớp dễ nhìn thấy:** một mã QR (decode ra flag giả)
+2. **Lớp ẩn thật:** dữ liệu giấu trong phần **sai số nhỏ** của ảnh TIFF kiểu `float64`
+
+Nói đơn giản:
+
+* Ảnh hiển thị cho bạn thấy QR
+* Nhưng tác giả còn nhét thêm dữ liệu vào phần “lẻ rất nhỏ” của từng pixel
+* Muốn lấy flag thật phải phân tích phần đó
+
+---
+
+# 1) Nhận diện file ban đầu
+
+## Bước đầu tiên mình luôn làm
+
+```bash
+file challenge_stego.tif
+```
+
+Kết quả (ý chính):
+
+* Đây là **TIFF**
+* Và là kiểu **grayscale float64** (ảnh xám, mỗi pixel là số thực 64-bit)
+
+### Vì sao điều này quan trọng?
+
+Ảnh bình thường (PNG/JPG) thường lưu pixel kiểu 8-bit (0..255).
+`float64` là kiểu **hơi lạ** trong CTF, rất đáng nghi vì có thể:
+
+* pixel nhìn thì giống ảnh bình thường
+* nhưng phần số thực (decimal) có thể chứa dữ liệu ẩn
+
+---
+
+# 2) Thử xử lý ảnh như ảnh thường (để xem có gì hiện ra)
+có thể dùng tool mở file tiff trên mạng hoặc  
+Vì là TIFF float, nhiều phần mềm không quét QR trực tiếp tốt. Ta convert về ảnh đen trắng:
+
+```bash
+convert challenge_stego.tif -auto-level -threshold 50% out.png
+convert out.png -bordercolor white -border 20 out_qr.png
+```
+
+Sau đó quét QR:
+
+* bằng điện thoại, hoặc
+* bằng `zbarimg out_qr.png`
+
+## Kết quả quét ra
+
+```text
+BITSCTF{blud_REALLY_ thought_lmao}
+```
+
+---
+
+# 3) Vì sao chuỗi QR này là flag giả?
+
+Bạn đã thử submit và **sai**. Đây là dấu hiệu rất mạnh cho thấy:
+
+* QR chỉ là **decoy** (mồi nhử)
+* còn **một lớp stego nữa** trong file TIFF
+
+Và vì file là `float64`, hướng hợp lý nhất là:
+
+> kiểm tra **phần giá trị pixel ẩn** (không phải chỉ phần đen/trắng hiện ra)
+
+---
+
+# 4) Hiểu bản chất ảnh TIFF này (rất quan trọng)
+
+## Cách tác giả giấu dữ liệu
+
+Mỗi pixel trong ảnh gần như là:
+
+* khoảng `0.xxxx` (đen)
+* hoặc `255.xxxx` (trắng)
+
+Phần:
+
+* `0` hoặc `255` → tạo ra QR mà mắt nhìn thấy
+* phần `.xxxx` (sai số nhỏ) → dùng để giấu dữ liệu thật
+
+### Hình dung dễ hiểu
+
+Giống như tác giả viết QR bằng bút dạ to,
+rồi **khắc thêm chữ nhỏ li ti** lên từng ô vuông bằng bút chì.
+
+Mắt thường chỉ thấy QR. Muốn thấy chữ nhỏ phải tách phần “bút chì” ra.
+
+---
+
+# 5) Tách lớp QR ra khỏi ảnh để lấy “phần ẩn”
+
+Ta làm như sau:
+
+1. Tạo ảnh QR “chuẩn” từ TIFF (chỉ còn 0 hoặc 255)
+2. Lấy:
+
+   ```text
+   residual = ảnh gốc - ảnh QR chuẩn
+   ```
+3. `residual` chính là phần nhiễu/sai số → nơi dữ liệu ẩn nằm
+
+---
+
+# 6) Script Python để trích lớp ẩn (cách mình làm)
+
+## Cài thư viện (nếu cần)
+
+```bash
+pip install tifffile opencv-python numpy
+```
+
+## Script phân tích
+
+```python
+import tifffile
+import numpy as np
+import cv2
+
+# Đọc TIFF float64
+a = tifffile.imread("challenge_stego.tif")
+print("shape:", a.shape, "dtype:", a.dtype, "min:", a.min(), "max:", a.max())
+
+# 1) Tạo lớp QR "thô" (0 hoặc 255)
+base = np.where(a > 127.5, 255.0, 0.0)
+
+# 2) Tách phần nhiễu ẩn
+res = a - base
+
+# 3) Lấy dấu của residual (âm/dương) để nhìn thành ảnh nhị phân
+#    >0 -> trắng, <=0 -> đen
+sign = (res > 0).astype(np.uint8) * 255
+cv2.imwrite("hidden_raw.png", sign)
+
+# 4) Tăng khả năng đọc: gom hàng theo chu kỳ (period) 128
+#    (vì dữ liệu ẩn lặp theo hàng)
+m = sign.astype(np.float32)
+m -= m.mean(axis=1, keepdims=True)
+
+P = 128
+fold = np.zeros((P, m.shape[1]), np.float32)
+cnt = np.zeros((P, 1), np.float32)
+
+for y in range(m.shape[0]):
+    fold[y % P] += m[y]
+    cnt[y % P] += 1
+
+fold /= cnt
+
+# Chuẩn hóa để lưu ảnh dễ nhìn
+mn, mx = fold.min(), fold.max()
+vis = ((fold - mn) / (mx - mn) * 255).astype(np.uint8)
+
+cv2.imwrite("hidden_fold.png", vis)
+print("[+] Saved hidden_raw.png and hidden_fold.png")
+```
+
+---
+
+# 7) Điều gì xảy ra sau khi chạy script?
+
+Bạn sẽ có 2 ảnh:
+
+## `hidden_raw.png`
+
+* Thấy dấu hiệu chữ/hoa văn mờ mờ
+* Chưa đọc rõ
+
+## `hidden_fold.png`
+
+* Sau khi “gấp” (fold) theo chu kỳ 128 hàng
+* Chữ sẽ rõ hơn nhiều
+* Đọc ra được **flag thật**
+
+### Flag thật đọc được là
+
+```text
+BITSCTF{qr_bu7_n07_7h47_qr}
+```
+
+---
+
+# 8) Tại sao phải “fold theo chu kỳ 128”?
+
+Đây là mẹo xử lý ảnh ẩn:
+
+* Dữ liệu ẩn được lặp lại theo các hàng
+* Khi “gấp” ảnh theo chu kỳ `P` (ở đây là 128), các hàng cùng vị trí chồng lên nhau
+* Nếu có pattern lặp, nó sẽ **nổi rõ lên**
+* Nhiễu ngẫu nhiên sẽ bị triệt bớt
+
+### Hiểu như thế này
+
+Bạn có nhiều bản chữ mờ chồng lệch nhau.
+Xếp đúng vị trí rồi cộng lại → chữ nét hơn.
+
+---
+
+# 9) Nếu chưa biết chu kỳ 128 thì làm sao?
+
+Câu hỏi hay 👌
+Nếu chưa biết `P = 128`, có thể thử:
+
+* 32
+* 64
+* 128
+* 256
+
+Trong nhiều bài CTF, các chu kỳ kiểu này rất hay gặp.
+
+Hoặc nhìn ảnh `hidden_raw.png`, bạn sẽ thấy pattern lặp theo hàng → đoán có chu kỳ.
+
+---
+
+# 10) Tóm tắt quy trình giải (ngắn gọn)
+
+## Quy trình thực chiến
+
+1. `file` → nhận ra TIFF float64 (đáng nghi)
+2. Convert ảnh → thấy QR
+3. Quét QR → ra “flag” nhưng submit sai (decoy)
+4. Nghi còn lớp ẩn vì file là stego TIFF float
+5. Tách phần QR thô (0/255)
+6. Lấy `residual = original - base`
+7. Xem dấu residual (`res > 0`)
+8. Fold theo chu kỳ 128 để làm rõ chữ
+9. Đọc flag thật
+
+---
+
+# 11) Vì sao bài này hay?
+
+Bài này dạy 3 thứ rất quan trọng trong stego:
+
+## 1) Đừng tin kết quả đầu tiên
+
+Ra QR chưa chắc là xong.
+Nếu challenge tên `stego`, luôn nghĩ: “còn lớp nữa không?”
+
+## 2) Định dạng file rất quan trọng
+
+`TIFF float64` là clue lớn.
+Nếu là ảnh 8-bit bình thường thì ít ai làm kiểu residual này.
+
+## 3) Stego không chỉ là LSB
+
+Bạn đã làm bài LSB (`smoke.png`) rồi.
+Bài này là kiểu khác: giấu trong **giá trị float / nhiễu nhỏ**.
+
+---
+
+# 12) Cheat sheet nhỏ cho các bài ảnh stego sau này
+
+## Khi gặp ảnh lạ, thử theo thứ tự:
+
+```bash
+file <file>
+exiftool <file>
+strings -n 6 <file>
+binwalk <file>
+```
+
+## Nếu là PNG/BMP:
+
+* `zsteg -a file.png`
+* Stegsolve (bit planes)
+
+## Nếu là JPG:
+
+* `binwalk`
+* `steghide`, `outguess`, metadata
+
+## Nếu là TIFF / ảnh khoa học / float:
+
+* Dùng Python (`tifffile`, `numpy`)
+* Kiểm tra:
+
+  * dtype (`float64`?)
+  * min/max
+  * residual
+  * sign / bitplanes / threshold
+
+---
+
+# 13) Kết luận cuối (rất dễ nhớ)
+
+* **QR bạn quét được là mồi nhử**
+* **Flag thật nằm trong phần nhiễu nhỏ của ảnh TIFF float**
+* Cách lấy là:
+
+  * tách lớp QR
+  * lấy residual
+  * chuyển sign thành ảnh
+  * fold theo chu kỳ để đọc text
+
+✅ **Flag đúng:** `BITSCTF{qr_bu7_n07_7h47_qr}`
+
+
