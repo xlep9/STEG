@@ -1,0 +1,26 @@
+binh@n07f0uNd:~$ binwalk Marlboro.jpg
+
+                                /home/binh/Marlboro.jpg
+--------------------------------------------------------------------------------------
+DECIMAL                            HEXADECIMAL                        DESCRIPTION
+--------------------------------------------------------------------------------------
+0                                  0x0                                JPEG image,
+                                                                      total size:
+                                                                      3754399 bytes
+3754399                            0x39499F                           ZIP archive,
+                                                                      file count: 2,
+                                                                      total size:
+                                                                      983655 bytes
+--------------------------------------------------------------------------------------
+
+Offset 0: file bắt đầu bằng JPEG hợp lệ.
+Offset 3754399: ngay sau khi phần JPEG kết thúc, có một ZIP archive bắt đầu.
+Tức là file Marlboro.jpg thực chất là:
+[JPEG] + [ZIP] (ZIP bị nối thêm vào cuối ảnh) (ZIP chứa 2 file)
+
+Cách 1: dùng binwalk -e
+Cách 2: cắt phần ZIP ra rồi giải nén (chắc ăn nhất)
+tail -c +3754400 Marlboro.jpg > payload.zip
+unzip payload.zip -d out
++3754400 vì tail -c +N dùng vị trí bắt đầu tính từ 1.
+
