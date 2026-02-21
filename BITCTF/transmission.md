@@ -1,7 +1,3 @@
-Có. Mình sẽ viết lại một **writeup hoàn chỉnh, cực dễ hiểu**, theo kiểu bạn chưa biết gì về stego hay Arnold’s Cat Map vẫn đọc được.
-
----
-
 # Writeup đầy đủ (dễ hiểu) — `transmission(for).png`
 
 ## Mục tiêu
@@ -157,20 +153,8 @@ Nên ảnh nhìn như nhiễu, nhưng thật ra chỉ là bị xáo vị trí.
 
 Một dạng tổng quát:
 
-[
-\begin{bmatrix}
-x' \
-y'
-\end{bmatrix}
-=============
+<img width="242" height="70" alt="image" src="https://github.com/user-attachments/assets/19be8034-4e0c-4d38-a2fe-1d85a2e2072b" />
 
-M
-\begin{bmatrix}
-x \
-y
-\end{bmatrix}
-\pmod N
-]
 
 * `M` = ma trận (quy định kiểu xáo)
 * `N` = kích thước ảnh (ở đây là 128)
@@ -363,23 +347,9 @@ Nếu reverse cả ảnh grayscale:
 
 Sau khi xác định đúng convention (tọa độ ảnh), ma trận là:
 
-### Style 1
 
-[
-\begin{bmatrix}
-1 & 1 \
-1 & 2
-\end{bmatrix}
-]
+<img width="367" height="199" alt="image" src="https://github.com/user-attachments/assets/306a38aa-7b40-4c5b-8abd-1c05f37c583e" />
 
-### Style 2
-
-[
-\begin{bmatrix}
-1 & 2 \
-1 & 3
-\end{bmatrix}
-]
 
 Các ma trận này khớp chu kỳ metadata:
 
@@ -408,9 +378,9 @@ Dùng trực tiếp tọa độ ảnh:
 * `c = col`
 
 và map:
-[
-[r', c'] = M [r, c] \pmod N
-]
+
+[r', c'] = M [r, c] (mod N)
+
 
 ---
 
@@ -420,14 +390,12 @@ và map:
 
 Nếu một stage đã xáo `spin = t` lần, chu kỳ là `period = p`, thì số lần undo là:
 
-[
-(-t) \bmod p
-]
+(-t) mod p
 
 Trong trường hợp `t > 0`, nó chính là:
-[
+
 p - t
-]
+
 
 ---
 
@@ -594,9 +562,3 @@ Sau khi chạy, ảnh `decoded_flag.png` hiện ra flag:
 * Kết hợp cả hai mới ra flag
 
 ---
-
-Nếu bạn muốn, mình có thể viết thêm một **bản mini 8×8** (cực dễ nhìn) để bạn thấy tận mắt:
-
-* một pixel “nhảy” ra sao qua từng spin
-* period là gì
-* vì sao `period - spin` lại undo được.
